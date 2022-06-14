@@ -18,7 +18,7 @@ export default () => {
     [-5,0,-5]
   ];
 
-  useFrame(() => {
+  useFrame(({ timeDiff }) => {
 
     if(physicsIds[0] && sphere) {
 
@@ -29,19 +29,38 @@ export default () => {
         let difference = sphere.position.y - waterLevel;
         let floatingPower = 5;
 
-        physics.addForce(physicsIds[0], new THREE.Vector3(0,0,-10).applyQuaternion(physicsIds[0].quaternion), true);
+        //physics.addForce(physicsIds[0], new THREE.Vector3(0,0,-10).applyQuaternion(physicsIds[0].quaternion), true);
 
-        if(difference < 0) {
-          let force = floatingPower*Math.abs(difference);
-          //console.log(force, difference);
-          physics.addForceAtLocalPos(physicsIds[0], new THREE.Vector3(0,force,0), localPos, true);
-        }
-        
+        for (var i = 0; i < posArray.length; i++) {
+
+          const timeDiffCapped = Math.min(Math.max(timeDiff/1000, 0), 100);
+
+          lastLength[i] = springLength;
+          springLength = pointArray[i].distance - wheelRadius;
+          springLength = THREE.MathUtils.clamp(springLength, minLength, maxLength);
+          springVelocity = (lastLength[i] - springLength) / (timeDiff/2000);
+          springForce = springStiffness * (restLength - springLength);
+          damperForce = damperStiffness * springVelocity;
+
+          let x = THREE.MathUtils.clamp(pointArray[i].distance, 0, maxLength) - 4;
+          let k = 1000;
+          let damping = 10;
+          let vecPog = localPlayer.characterPhysics.velocity.clone();
+          vecPog.normalize();
+          let force = -k * x - damping * vecPog.y ;
+
+          suspensionForce = new THREE.Vector3(0, Math.abs(springForce/damperForce), 0);
+
+          let tempVec = new THREE.Vector3(0, force*timeDiffCapped, 0);
+
+          physics.addForceAtLocalPos(physicsIds[0], tempVec, 
+            new THREE.Vector3(originArray[i].position.x, originArray[i].position.y, originArray[i].position.z));
+
       }
+    }
 
-
-      sphere.position.copy(physicsIds[0].position);
-      sphere.quaternion.copy(physicsIds[0].quaternion);
+      app.position.copy(physicsIds[0].position);
+      app.quaternion.copy(physicsIds[0].quaternion);
       app.updateMatrixWorld();
 
     }
@@ -57,10 +76,6 @@ export default () => {
     });
     sphere = o.scene;
     app.add( sphere );
-
-    const radius = 0.8;
-    const halfHeight = 0.08;
-    const physicsMaterial = new THREE.Vector3(0.5, 0.5, 0.1); //static friction, dynamic friction, restitution
 
     app.updateMatrixWorld();
     
